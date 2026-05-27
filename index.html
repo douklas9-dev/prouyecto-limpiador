@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Limpiador LaTeX Exprés</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    * { scrollbar-width: thin; scrollbar-color: rgba(71,85,105,0.5) transparent; }
+
+    @keyframes fade-slide-in {
+      from { opacity: 0; transform: translateY(6px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes border-glow {
+      0%   { border-color: rgba(99,102,241,0.4); }
+      100% { border-color: rgba(71,85,105,0.6); }
+    }
+    .output-flash {
+      animation: border-glow 0.4s ease-out;
+    }
+    .panel {
+      transition: box-shadow 0.3s ease, border-color 0.3s ease;
+    }
+    .panel:hover {
+      border-color: rgba(99,102,241,0.25);
+    }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen antialiased selection:bg-indigo-500/30">
+
+  <div class="max-w-7xl mx-auto px-4 py-6 md:px-8 md:py-10 flex flex-col min-h-screen">
+
+    <!-- Header -->
+    <header class="mb-8 animate-fade-in" style="animation: fade-slide-in 0.5s ease-out">
+      <h1 class="text-2xl md:text-3xl font-bold bg-gradient-to-r from-indigo-400 via-violet-400 to-fuchsia-400 bg-clip-text text-transparent inline-block">
+        &#x26A1; Limpiador LaTeX Expr&eacute;s
+      </h1>
+      <p class="text-slate-500 mt-1.5 text-sm">Pega tu c&oacute;digo LaTeX y la limpieza es instant&aacute;nea</p>
+    </header>
+
+    <!-- Grid -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-5 md:gap-6 flex-1" style="animation: fade-slide-in 0.5s ease-out 0.1s both">
+
+      <!-- Input Panel -->
+      <div class="flex flex-col">
+        <label for="input" class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
+          C&oacute;digo original
+        </label>
+        <textarea id="input"
+          class="panel flex-1 min-h-[16rem] md:min-h-0 w-full bg-slate-900 border border-slate-700/60 rounded-xl p-4 font-mono text-sm leading-relaxed text-slate-200 placeholder-slate-600 resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500/60 focus:border-indigo-500/60 transition-all duration-200 shadow-lg shadow-black/20"
+          placeholder="Pega o escribe tu c&oacute;digo LaTeX aqu&#x00ED;&#x000A;Ej: \textbf{Hola} $x \times y$"
+          spellcheck="false"
+        ></textarea>
+        <div class="mt-2 text-xs text-slate-600">
+          <span id="char-count" class="tabular-nums">0</span> caracteres
+        </div>
+      </div>
+
+      <!-- Output Panel -->
+      <div class="flex flex-col">
+        <div class="flex items-center justify-between mb-2">
+          <label class="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+            Resultado limpio
+          </label>
+          <button id="copy-btn"
+            class="text-xs font-medium px-3 py-1.5 rounded-lg bg-slate-800 text-slate-400 border border-slate-700/60 hover:bg-indigo-600 hover:text-white hover:border-indigo-500 hover:shadow-lg hover:shadow-indigo-500/20 active:scale-95 transition-all duration-200 opacity-0 pointer-events-none"
+          >
+            Copiar
+          </button>
+        </div>
+        <div id="output"
+          class="panel flex-1 min-h-[16rem] md:min-h-0 w-full bg-slate-900 border border-slate-700/60 rounded-xl p-4 font-mono text-sm leading-relaxed text-slate-200 overflow-auto whitespace-pre-wrap break-words shadow-lg shadow-black/20"
+        ></div>
+      </div>
+
+    </div>
+
+    <!-- Footer -->
+    <footer class="mt-10 text-center text-xs text-slate-700" style="animation: fade-slide-in 0.5s ease-out 0.2s both">
+      Procesamiento 100 % local &mdash; nada sale de tu navegador
+    </footer>
+  </div>
+
+  <script>
+    /* ====================================================
+       DOM refs
+       ==================================================== */
+    const inputEl     = document.getElementById('input');
+    const outputEl    = document.getElementById('output');
+    const copyBtn     = document.getElementById('copy-btn');
+    const charCount   = document.getElementById('char-count');
+
+    /* ====================================================
+       Symbol map  (sorted by key length desc at runtime)
+       ==================================================== */
+    const SYMBOLS = {
+      '\\longrightarrow': '\u27F6',
+      '\\longleftarrow': '\u27F5',
+      '\\Longrightarrow': '\u27F9',
+      '\\Longleftarrow': '\u27F8',
+      '\\longleftrightarrow': '\u27F7',
+      '\\Longleftrightarrow': '\u27FA',
+      '\\mapsto': '\u21A6',
+      '\\longmapsto': '\u27FC',
+      '\\hookrightarrow': '\u21AA',
+      '\\hookleftarrow': '\u21A9',
+      '\\rightarrow': '\u2192',
+      '\\leftarrow': '\u2190',
+      '\\Rightarrow': '\u21D2',
+      '\\Leftarrow': '\u21D0',
+      '\\leftrightarrow': '\u2194',
+      '\\Leftrightarrow': '\u21D4',
+      '\\uparrow': '\u2191',
+      '\\downarrow': '\u2193',
+      '\\Uparrow': '\u21D1',
+      '\\Downarrow': '\u21D3',
+      '\\updownarrow': '\u2195',
+      '\\Updownarrow': '\u21D5',
+      '\\nearrow': '\u2197',
+      '\\searrow': '\u2198',
+      '\\nwarrow': '\u2196',
+      '\\swarrow': '\u2199',
+      '\\times': '\u00D7',
+      '\\div': '\u00F7',
+      '\\pm': '\u00B1',
+      '\\mp': '\u2213',
+      '\\cdot': '\u00B7',
+      '\\neq': '\u2260',
+      '\\leq': '\u2264',
+      '\\geq': '\u2265',
+      '\\ll': '\u226A',
+      '\\gg': '\u226B',
+      '\\approx': '\u2248',
+      '\\equiv': '\u2261',
+      '\\sim': '\u223C',
+      '\\simeq': '\u2243',
+      '\\cong': '\u2245',
+      '\\propto': '\u221D',
+      '\\prec': '\u227A',
+      '\\succ': '\u227B',
+      '\\preceq': '\u227C',
+      '\\succeq': '\u227D',
+      '\\subset': '\u2282',
+      '\\supset': '\u2283',
+      '\\subseteq': '\u2286',
+      '\\supseteq': '\u2287',
+      '\\cup': '\u222A',
+      '\\cap': '\u2229',
+      '\\in': '\u2208',
+      '\\notin': '\u2209',
+      '\\ni': '\u220B',
+      '\\emptyset': '\u2205',
+      '\\varnothing': '\u2205',
+      '\\exists': '\u2203',
+      '\\forall': '\u2200',
+      '\\neg': '\u00AC',
+      '\\wedge': '\u2227',
+      '\\vee': '\u2228',
+      '\\oplus': '\u2295',
+      '\\ominus': '\u2296',
+      '\\otimes': '\u2297',
+      '\\oslash': '\u2298',
+      '\\odot': '\u2299',
+      '\\dagger': '\u2020',
+      '\\ddagger': '\u2021',
+      '\\infty': '\u221E',
+      '\\partial': '\u2202',
+      '\\nabla': '\u2207',
+      '\\alpha': '\u03B1',
+      '\\beta': '\u03B2',
+      '\\gamma': '\u03B3',
+      '\\delta': '\u03B4',
+      '\\epsilon': '\u03B5',
+      '\\varepsilon': '\u03B5',
+      '\\zeta': '\u03B6',
+      '\\eta': '\u03B7',
+      '\\theta': '\u03B8',
+      '\\vartheta': '\u03B8',
+      '\\iota': '\u03B9',
+      '\\kappa': '\u03BA',
+      '\\lambda': '\u03BB',
+      '\\mu': '\u03BC',
+      '\\nu': '\u03BD',
+      '\\xi': '\u03BE',
+      '\\pi': '\u03C0',
+      '\\varpi': '\u03D6',
+      '\\rho': '\u03C1',
+      '\\varrho': '\u03F1',
+      '\\sigma': '\u03C3',
+      '\\varsigma': '\u03C2',
+      '\\tau': '\u03C4',
+      '\\upsilon': '\u03C5',
+      '\\phi': '\u03C6',
+      '\\varphi': '\u03C6',
+      '\\chi': '\u03C7',
+      '\\psi': '\u03C8',
+      '\\omega': '\u03C9',
+      '\\Gamma': '\u0393',
+      '\\Delta': '\u0394',
+      '\\Theta': '\u0398',
+      '\\Lambda': '\u039B',
+      '\\Xi': '\u039E',
+      '\\Pi': '\u03A0',
+      '\\Sigma': '\u03A3',
+      '\\Upsilon': '\u03A5',
+      '\\Phi': '\u03A6',
+      '\\Psi': '\u03A8',
+      '\\Omega': '\u03A9',
+      '\\sum': '\u2211',
+      '\\prod': '\u220F',
+      '\\coprod': '\u2210',
+      '\\int': '\u222B',
+      '\\iint': '\u222C',
+      '\\iiint': '\u222D',
+      '\\oint': '\u222E',
+      '\\therefore': '\u2234',
+      '\\because': '\u2235',
+      '\\angle': '\u2220',
+      '\\measuredangle': '\u2221',
+      '\\perp': '\u22A5',
+      '\\parallel': '\u2225',
+      '\\surd': '\u221A',
+      '\\hbar': '\u210F',
+      '\\ell': '\u2113',
+      '\\wp': '\u2118',
+      '\\Re': '\u211C',
+      '\\Im': '\u2111',
+      '\\aleph': '\u2135',
+      '\\prime': '\u2032',
+      '\\diamond': '\u22C4',
+      '\\triangle': '\u25B3',
+      '\\bigtriangleup': '\u25B3',
+      '\\bigtriangledown': '\u25BD',
+      '\\triangleleft': '\u25C1',
+      '\\triangleright': '\u25B7',
+      '\\lhd': '\u22B2',
+      '\\rhd': '\u22B3',
+      '\\unlhd': '\u22B4',
+      '\\unrhd': '\u22B5',
+      '\\top': '\u22A4',
+      '\\bot': '\u22A5',
+      '\\models': '\u22A8',
+      '\\dashv': '\u22A3',
+      '\\vdash': '\u22A2',
+      '\\smile': '\u2323',
+      '\\frown': '\u2322',
+    };
+
+    /* ====================================================
+       Style commands — extract inner content, discard shell
+       Sorted by length desc so longer names match first.
+       ==================================================== */
+    const STYLE_CMDS = [
+      'textbf', 'textit', 'texttt', 'textsc', 'textsl', 'textup',
+      'textrm', 'textsf', 'underline', 'boldsymbol',
+      'mathrm', 'mathbf', 'mathit', 'mathsf', 'mathtt',
+      'mathcal', 'mathbb', 'mathscr', 'mathfrak',
+      'emph', 'mbox', 'bm',
+      'bf', 'it', 'rm', 'sf', 'tt', 'sc', 'sl', 'up',
+    ].sort(function (a, b) { return b.length - a.length; });
+
+    /* ====================================================
+       Commands to strip entirely (command + arguments)
+       ==================================================== */
+    const STRIP_CMDS = [
+      'label', 'ref', 'pageref', 'cite', 'nocite', 'bibitem',
+      'usepackage', 'documentclass', 'newcommand', 'renewcommand',
+      'def', 'let', 'setlength',
+      'hspace', 'vspace', 'hfill', 'vfill',
+      'bigskip', 'medskip', 'smallskip', 'noindent', 'indent',
+      'newpage', 'clearpage', 'pagebreak', 'linebreak',
+      'centering', 'raggedright', 'raggedleft',
+      'footnote', 'marginpar', 'caption',
+      'title', 'author', 'date', 'maketitle',
+      'tableofcontents', 'listoffigures', 'listoftables', 'abstract',
+      'part', 'chapter', 'section', 'subsection', 'subsubsection',
+      'paragraph', 'subparagraph', 'appendix',
+      'bibliography', 'bibliographystyle',
+      'include', 'input', 'subfile', 'includegraphics',
+      'hline', 'vline', 'cline',
+      'displaystyle', 'textstyle', 'scriptstyle', 'scriptscriptstyle',
+      'qquad', 'quad', 'enspace', 'thinspace', 'negthinspace',
+      'left', 'right', 'big', 'Big', 'bigg', 'Bigg',
+      'bigl', 'Bigl', 'biggl', 'Biggl', 'bigr', 'Bigr', 'biggr', 'Biggr',
+      'limits', 'nolimits',
+    ];
+
+    /* ====================================================
+       Helpers
+       ==================================================== */
+    function escapeRx(s) {
+      return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    }
+
+    /* ====================================================
+       Core cleaning engine
+       ==================================================== */
+    function cleanLatex(text) {
+      var r = text;
+
+      /* 1. remove \begin{…} / \end{…} environments */
+      r = r.replace(/\\begin\{[^}]*\}\s*/g, '');
+      r = r.replace(/\\end\{[^}]*\}\s*/g, '');
+
+      /* 2. strip math mode delimiters (keep content) */
+      r = r.replace(/\$\$/g, '');
+      r = r.replace(/\\\[/g, '');
+      r = r.replace(/\\\]/g, '');
+      r = r.replace(/\\\(/g, '');
+      r = r.replace(/\\\)/g, '');
+
+      /* 3. replace symbol commands */
+      var symbols = Object.keys(SYMBOLS).sort(function (a, b) { return b.length - a.length; });
+      for (var i = 0; i < symbols.length; i++) {
+        r = r.replace(new RegExp(escapeRx(symbols[i]), 'g'), SYMBOLS[symbols[i]]);
+      }
+
+      /* 4. extract content from style containers (iterative → handles nesting) */
+      var prev;
+      do {
+        prev = r;
+        for (var j = 0; j < STYLE_CMDS.length; j++) {
+          r = r.replace(new RegExp('\\\\' + STYLE_CMDS[j] + '\\*?\\{([^}]*)\\}', 'g'), '$1');
+        }
+      } while (r !== prev);
+
+      /* 5. strip known commands + their args */
+      for (var k = 0; k < STRIP_CMDS.length; k++) {
+        r = r.replace(new RegExp('\\\\' + STRIP_CMDS[k] + '(\\[[^\\]]*\\])?\\{[^}]*\\}', 'g'), '');
+        r = r.replace(new RegExp('\\\\' + STRIP_CMDS[k] + '\\[[^\\]]*\\]', 'g'), '');
+      }
+
+      /* 6. remaining $ delimiters */
+      r = r.replace(/\$/g, '');
+
+      /* 7. orphan backslash before punctuation */
+      r = r.replace(/\\([.,!?;:'"()\[\]{}…])/g, '$1');
+
+      /* 8. isolated backslash before space or end */
+      r = r.replace(/\\(?=\s|$)/g, '');
+
+      /* 9. collapse multiple spaces (keep single newline) */
+      r = r.replace(/[ \t]+/g, ' ');
+      r = r.split('\n').map(function (line) { return line.trim(); }).join('\n');
+      r = r.replace(/\n{3,}/g, '\n\n');
+
+      return r.trim();
+    }
+
+    /* ====================================================
+       UI update
+       ==================================================== */
+    function update() {
+      var raw = inputEl.value;
+      var cleaned = cleanLatex(raw);
+
+      if (outputEl.textContent !== cleaned) {
+        outputEl.textContent = cleaned;
+        outputEl.classList.remove('output-flash');
+        void outputEl.offsetWidth;
+        outputEl.classList.add('output-flash');
+      }
+      charCount.textContent = raw.length;
+
+      /* toggle copy button */
+      if (cleaned.length > 0) {
+        copyBtn.classList.remove('opacity-0', 'pointer-events-none');
+        copyBtn.classList.add('opacity-100', 'pointer-events-auto');
+      } else {
+        copyBtn.classList.remove('opacity-100', 'pointer-events-auto');
+        copyBtn.classList.add('opacity-0', 'pointer-events-none');
+      }
+
+      /* reset copy button text if user keeps typing */
+      if (copyBtn.textContent !== 'Copiar') {
+        copyBtn.textContent = 'Copiar';
+        copyBtn.classList.remove('bg-emerald-600', 'border-emerald-500', 'text-white');
+        copyBtn.classList.add('bg-slate-800', 'text-slate-400', 'border-slate-700/60');
+      }
+    }
+
+    /* ====================================================
+       Copy handler
+       ==================================================== */
+    var copyTimer = null;
+
+    function handleCopy() {
+      if (copyTimer) {
+        clearTimeout(copyTimer);
+        copyTimer = null;
+      }
+
+      var text = outputEl.textContent;
+      if (!text) return;
+
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(function () {
+          copyFeedback();
+        }, function () {
+          fallbackCopy(text);
+        });
+      } else {
+        fallbackCopy(text);
+      }
+    }
+
+    function fallbackCopy(text) {
+      var ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      try {
+        document.execCommand('copy');
+        copyFeedback();
+      } catch (e) { /* silent */ }
+      document.body.removeChild(ta);
+    }
+
+    function copyFeedback() {
+      copyBtn.textContent = '\u00A1Copiado!';
+      copyBtn.classList.remove('bg-slate-800', 'text-slate-400', 'border-slate-700/60');
+      copyBtn.classList.add('bg-emerald-600', 'border-emerald-500', 'text-white');
+      copyTimer = setTimeout(function () {
+        copyBtn.textContent = 'Copiar';
+        copyBtn.classList.remove('bg-emerald-600', 'border-emerald-500', 'text-white');
+        copyBtn.classList.add('bg-slate-800', 'text-slate-400', 'border-slate-700/60');
+        copyTimer = null;
+      }, 2000);
+    }
+
+    /* ====================================================
+       Bind events
+       ==================================================== */
+    inputEl.addEventListener('input', update);
+    copyBtn.addEventListener('click', handleCopy);
+
+    /* run initial update in case of pre-filled content */
+    update();
+  </script>
+</body>
+</html>
