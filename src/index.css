@@ -1,0 +1,38 @@
+@import "tailwindcss";
+
+@theme {
+  --color-surface: #f5f5f7;
+  --color-surface-dark: #1c1c1e;
+  --color-card: #ffffff;
+  --color-card-dark: #2c2c2e;
+  --color-accent: #0071e3;
+  --color-accent-hover: #0077ed;
+  --color-border: #d2d2d7;
+  --color-border-dark: #48484a;
+  --color-label: #1d1d1f;
+  --color-label-dark: #f5f5f7;
+  --color-secondary: #86868b;
+  --color-secondary-dark: #98989d;
+}
+
+@layer base {
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', 'Helvetica Neue', Arial, sans-serif;
+  }
+}
+
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(0, 113, 227, 0); }
+  50% { box-shadow: 0 0 0 4px rgba(0, 113, 227, 0.15); }
+}
+
+.animate-fade-up {
+  animation: fade-up 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.animate-pulse-glow {
+  animation: pulse-glow 0.6s ease-out;
+}
